@@ -144,7 +144,7 @@ async function addNewLink() {
         return;
     }
 
-    const newLinkRef = push(ref(db, `users/${currentUser.uid}/links`));
+    const newLinkRef = push(ref(db, `publicLinks/${newLinkRef.key}`));
     await set(newLinkRef, {
         name: name,
         destinationUrl: destination,
