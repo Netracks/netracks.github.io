@@ -1,9 +1,95 @@
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, get, update, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting...</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', monospace;
+            background: #f4f8fb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 1rem;
+        }
+        .redirect-card {
+            background: white;
+            padding: 2rem 2.5rem;
+            border-radius: 36px;
+            box-shadow: 0 20px 30px -12px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0eef3;
+            border-top: 4px solid #0f4c5f;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 1rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .error {
+            color: #b91c1c;
+            background: #ffe6e6;
+            padding: 0.8rem;
+            border-radius: 60px;
+            font-size: 0.9rem;
+            margin: 0.5rem 0;
+        }
+        .success {
+            color: #0f4c5f;
+            background: #e0f0f5;
+            padding: 0.8rem;
+            border-radius: 60px;
+            font-size: 0.9rem;
+        }
+        button {
+            background: #0f4c5f;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 40px;
+            cursor: pointer;
+            margin-top: 1rem;
+            font-weight: 500;
+        }
+        a {
+            color: #0f4c5f;
+        }
+        .manual-link {
+            word-break: break-all;
+            background: #f0f4f8;
+            padding: 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-top: 1rem;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+                "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { getDatabase, ref, get, update, push } from "firebase/database";
 
-    document.addEventListener("DOMContentLoaded", async () => {
-        // 🔁 YOUR FIREBASE CONFIGURATION (replace with your own)
+        // 🔁 YOUR FIREBASE CONFIGURATION
         const firebaseConfig = {
             apiKey: "AIzaSyCx-yIgRBdqqaZm5mnCs6XicbJHqf442mQ",
             authDomain: "netrackers.firebaseapp.com",
@@ -16,161 +102,179 @@
         };
 
         // Initialize Firebase
-        let app, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getDatabase(app);
-            console.log("✅ Firebase initialized");
-        } catch (err) {
-            console.error("❌ Firebase init error:", err);
-            document.getElementById('message').innerHTML = '<div class="error">🔥 Firebase config error.</div>';
-            return;
-        }
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
 
+        // DOM elements
         const messageDiv = document.getElementById('message');
+        const manualRedirectBtn = document.getElementById('manualRedirectBtn');
+        const manualLinkSpan = document.getElementById('manualLink');
+        const manualContainer = document.getElementById('manualRedirect');
+
         const urlParams = new URLSearchParams(window.location.search);
         const linkId = urlParams.get('id');
 
         if (!linkId) {
-            messageDiv.innerHTML = '<div class="error">❌ Missing link ID.</div>';
+            messageDiv.innerHTML = '<div class="error">❌ Missing link ID. Invalid tracking link.</div>';
+            manualContainer.classList.remove('hidden');
+            manualRedirectBtn.style.display = 'none';
+            manualLinkSpan.textContent = '#';
             return;
         }
 
-        // We don't know the uid yet – first fetch the link to get its uid
-        // But we need to know where to look. We'll need to search for the link across all users?
-        // Better: store the uid in the link itself, and use a global link index.
-        // However, for simplicity, we can query the global links collection? But we want per-user.
-        // The recommended approach: create a global "links" index that maps linkId to { uid, linkId }.
-        // But that adds complexity. Instead, we'll assume the linkId is unique and store it under a global "links" collection that just points to the user.
-        // Actually, we can store the link under users/{uid}/links/{linkId} and also keep a global reference.
-        // The simplest: when a link is created, also create an entry under "globalLinks/{linkId}" that stores the uid.
-        // But we haven't done that. For now, let's read the link by searching all users? That would be inefficient.
-        // Better: modify the tracking URL to include the uid: e.g., redirect.html?id=xxx&uid=yyy
-        // But that would expose the uid. Alternatively, we can embed the uid in the link ID itself (like a composite key).
-        // Given the user's instruction, they want to store uid inside the link document, and then redirect.html fetches that link from a known path.
-        // But to fetch the link, we need to know the user's path. So we must have a way to locate it.
-        // The typical solution: keep a global "links" collection that maps linkId to { uid, ... }.
-        // Let's implement that: when creating a link, also write to a global "linkIndex/{linkId}" with the uid and maybe the link path.
-        // Then in redirect.html, first look up the link in the global index to get the uid, then fetch the full link data from the user's subpath.
-
-        // We'll modify app.js to also write to a global index, and redirect.html will use that index.
-        // But to keep this answer concise, I'll assume the linkId includes the uid as a prefix, or we use a global index as described.
-        // However, the user's instruction says: "Store uid inside each link" and then "After fetching link, get uid from data". But fetching the link requires knowing the path. So we need a global lookup.
-
-        // I'll provide a solution with a global "linkIndex" that stores { uid, ... }.
-        // Update app.js to write to linkIndex, and redirect.html to use it.
-        // Let's implement that.
-
-        // For now, let's assume we have a global index.
-        // We'll update the code accordingly.
-
-        // Get the link from global index to find the owner
+        // Step 1: Look up the link in global index to find the owner UID
+        messageDiv.innerHTML = '<div>🔍 Locating link...</div>';
         const indexRef = ref(db, `linkIndex/${linkId}`);
-        const indexSnapshot = await get(indexRef);
-        if (!indexSnapshot.exists()) {
-            messageDiv.innerHTML = '<div class="error">🔍 Link not found.</div>';
-            return;
-        }
+        
+        get(indexRef).then(async (indexSnapshot) => {
+            if (!indexSnapshot.exists()) {
+                messageDiv.innerHTML = '<div class="error">🔍 Link not found or has been deleted.</div>';
+                manualContainer.classList.remove('hidden');
+                manualRedirectBtn.style.display = 'none';
+                return;
+            }
 
-        const { uid } = indexSnapshot.val();
-        if (!uid) {
-            messageDiv.innerHTML = '<div class="error">🔍 Invalid link.</div>';
-            return;
-        }
+            const { uid } = indexSnapshot.val();
+            if (!uid) {
+                messageDiv.innerHTML = '<div class="error">🔍 Invalid link data.</div>';
+                manualContainer.classList.remove('hidden');
+                manualRedirectBtn.style.display = 'none';
+                return;
+            }
 
-        // Now get the full link data from the user's subpath
-        const linkRef = ref(db, `users/${uid}/links/${linkId}`);
-        const linkSnapshot = await get(linkRef);
-        if (!linkSnapshot.exists()) {
-            messageDiv.innerHTML = '<div class="error">🔍 Link data missing.</div>';
-            return;
-        }
+            // Step 2: Fetch the full link data from the user's subpath
+            messageDiv.innerHTML = '<div>📡 Fetching destination...</div>';
+            const linkRef = ref(db, `users/${uid}/links/${linkId}`);
+            const linkSnapshot = await get(linkRef);
+            
+            if (!linkSnapshot.exists()) {
+                messageDiv.innerHTML = '<div class="error">🔍 Link data missing.</div>';
+                manualContainer.classList.remove('hidden');
+                manualRedirectBtn.style.display = 'none';
+                return;
+            }
 
-        const linkData = linkSnapshot.val();
-        let destination = linkData.destinationUrl;
+            const linkData = linkSnapshot.val();
+            let destination = linkData.destinationUrl;
 
-        if (!destination) {
-            messageDiv.innerHTML = '<div class="error">⚠️ Destination URL is empty.</div>';
-            return;
-        }
+            if (!destination) {
+                messageDiv.innerHTML = '<div class="error">⚠️ Destination URL is empty.</div>';
+                manualContainer.classList.remove('hidden');
+                manualRedirectBtn.style.display = 'none';
+                return;
+            }
 
-        // Fix URL protocol
-        if (!destination.startsWith('http://') && !destination.startsWith('https://')) {
-            destination = 'https://' + destination;
-        }
+            // Fix protocol if missing
+            if (!destination.startsWith('http://') && !destination.startsWith('https://')) {
+                destination = 'https://' + destination;
+            }
 
-        // Validate URL
-        try {
-            new URL(destination);
-        } catch (e) {
-            messageDiv.innerHTML = `<div class="error">❌ Invalid URL: ${destination}</div>`;
-            return;
-        }
+            // Validate URL
+            try {
+                new URL(destination);
+            } catch (e) {
+                messageDiv.innerHTML = `<div class="error">❌ Invalid destination URL: ${destination}</div>`;
+                manualContainer.classList.remove('hidden');
+                manualLinkSpan.textContent = destination;
+                manualRedirectBtn.style.display = 'inline-block';
+                manualRedirectBtn.onclick = () => window.location.replace(destination);
+                return;
+            }
 
-        // Collect visitor data (non‑blocking)
-        const userAgent = navigator.userAgent;
-        const platform = navigator.platform;
-        const referrer = document.referrer || "Direct";
-        const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent);
-        const isAndroid = /Android/i.test(userAgent);
-        const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
-        const isChrome = /Chrome/i.test(userAgent) && !/Edg/i.test(userAgent);
-        const isFirefox = /Firefox/i.test(userAgent);
-        const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
+            // ========== ANALYTICS (non-blocking) ==========
+            // Collect device info
+            const userAgent = navigator.userAgent;
+            const platform = navigator.platform;
+            const referrer = document.referrer || "Direct";
+            const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent);
+            const isAndroid = /Android/i.test(userAgent);
+            const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+            const isChrome = /Chrome/i.test(userAgent) && !/Edg/i.test(userAgent);
+            const isFirefox = /Firefox/i.test(userAgent);
+            const isSafari = /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
 
-        let source = "Direct";
-        if (referrer.includes("whatsapp")) source = "WhatsApp";
-        else if (referrer.includes("google")) source = "Google";
-        else if (referrer.includes("facebook") || referrer.includes("fb.com")) source = "Facebook";
-        else if (referrer.includes("twitter")) source = "Twitter";
-        else if (referrer.includes("instagram")) source = "Instagram";
-        else if (referrer.includes("linkedin")) source = "LinkedIn";
-        else if (referrer.includes("telegram")) source = "Telegram";
-        else if (referrer !== "Direct") source = "Other";
+            let source = "Direct";
+            if (referrer.includes("whatsapp")) source = "WhatsApp";
+            else if (referrer.includes("google")) source = "Google";
+            else if (referrer.includes("facebook") || referrer.includes("fb.com")) source = "Facebook";
+            else if (referrer.includes("twitter")) source = "Twitter";
+            else if (referrer.includes("instagram")) source = "Instagram";
+            else if (referrer.includes("linkedin")) source = "LinkedIn";
+            else if (referrer.includes("telegram")) source = "Telegram";
+            else if (referrer !== "Direct") source = "Other";
 
-        const screenSize = { width: screen.width, height: screen.height };
+            const screenSize = { width: screen.width, height: screen.height };
 
-        // Fetch geo data in background
-        let locationData = {};
-        const geoPromise = fetch("https://ipapi.co/json/")
-            .then(res => res.ok ? res.json() : {})
-            .catch(err => { console.warn("GeoIP failed:", err); return {}; });
+            // Fetch geo data in background
+            let locationData = {};
+            const geoPromise = fetch("https://ipapi.co/json/")
+                .then(res => res.ok ? res.json() : {})
+                .catch(err => { console.warn("GeoIP fetch failed:", err); return {}; });
 
-        // Prepare visit data after geo resolves
-        geoPromise.then(loc => {
-            const visitData = {
-                ip: loc.ip || "hidden",
-                country: loc.country_name || "unknown",
-                city: loc.city || "unknown",
-                region: loc.region || "unknown",
-                isp: loc.org || "unknown",
-                latitude: loc.latitude || null,
-                longitude: loc.longitude || null,
-                userAgent: userAgent.slice(0, 120),
-                os: platform,
-                referrer: referrer,
-                source: source,
-                device: isMobile ? "Mobile" : "Desktop",
-                deviceType: isMobile ? (isAndroid ? "Android" : isIOS ? "iOS" : "Mobile") : "Desktop",
-                browserName: isChrome ? "Chrome" : isFirefox ? "Firefox" : isSafari ? "Safari" : "Other",
-                screen: screenSize,
-                timestamp: new Date().toISOString()
-            };
+            // Prepare visit data and save after geo resolves
+            geoPromise.then(loc => {
+                const visitData = {
+                    ip: loc.ip || "hidden",
+                    country: loc.country_name || "unknown",
+                    city: loc.city || "unknown",
+                    region: loc.region || "unknown",
+                    isp: loc.org || "unknown",
+                    latitude: loc.latitude || null,
+                    longitude: loc.longitude || null,
+                    userAgent: userAgent.slice(0, 120),
+                    os: platform,
+                    referrer: referrer,
+                    source: source,
+                    device: isMobile ? "Mobile" : "Desktop",
+                    deviceType: isMobile ? (isAndroid ? "Android" : isIOS ? "iOS" : "Mobile") : "Desktop",
+                    browserName: isChrome ? "Chrome" : isFirefox ? "Firefox" : isSafari ? "Safari" : "Other",
+                    screen: screenSize,
+                    timestamp: new Date().toISOString()
+                };
 
-            // Save visit under user's path
-            const visitsRef = ref(db, `users/${uid}/links/${linkId}/visits`);
-            const newVisitRef = push(visitsRef);
-            update(newVisitRef, visitData)
-                .then(() => console.log("✅ Visit saved"))
-                .catch(err => console.warn("Visit save failed:", err));
+                const visitsRef = ref(db, `users/${uid}/links/${linkId}/visits`);
+                const newVisitRef = push(visitsRef);
+                update(newVisitRef, visitData)
+                    .then(() => console.log("✅ Visit saved"))
+                    .catch(err => console.warn("Visit save failed:", err));
+            });
 
             // Increment click count
             update(linkRef, { clickCount: (linkData.clickCount || 0) + 1 })
                 .catch(err => console.warn("Click increment failed:", err));
-        });
 
-        // Redirect immediately (non‑blocking)
-        messageDiv.innerHTML = '<div class="success">✅ Redirecting...</div>';
-        setTimeout(() => window.location.replace(destination), 300);
-    });
-</script>
+            // ========== REDIRECT ==========
+            messageDiv.innerHTML = '<div class="success">✅ Redirecting now...</div>';
+            
+            // Provide manual fallback
+            manualLinkSpan.textContent = destination;
+            manualRedirectBtn.onclick = () => window.location.replace(destination);
+            manualContainer.classList.remove('hidden');
+            manualRedirectBtn.style.display = 'inline-block';
+
+            // Automatic redirect after a short delay (ensures message is seen)
+            setTimeout(() => {
+                window.location.replace(destination);
+            }, 200);
+        }).catch((error) => {
+            console.error("Redirect error:", error);
+            messageDiv.innerHTML = `<div class="error">🔥 Failed to load link: ${error.message || 'Unknown error'}</div>`;
+            manualContainer.classList.remove('hidden');
+            manualRedirectBtn.style.display = 'none';
+        });
+    </script>
+</head>
+<body>
+    <div class="redirect-card">
+        <h3>🔗 LinkTracker</h3>
+        <div class="spinner"></div>
+        <p>Processing your click...</p>
+        <div id="message"></div>
+        <div id="manualRedirect" class="hidden">
+            <button id="manualRedirectBtn">➡️ Click here if not redirected</button>
+            <div class="manual-link">Or go directly: <span id="manualLink"></span></div>
+        </div>
+        <small style="display: block; margin-top: 1rem;">⚡ <a href="/">Go to dashboard</a></small>
+    </div>
+</body>
+</html>
