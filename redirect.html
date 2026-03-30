@@ -261,6 +261,11 @@
 
                 // ========== REDIRECT ==========
                 messageDiv.innerHTML = '<div class="success">✅ Redirecting now...</div>';
+
+                // Automatic redirect after a short delay (ensures message is seen)
+                setTimeout(() => {
+                    window.location.replace(destination);
+                }, 200);
                 
                 // Provide manual fallback
                 manualLinkSpan.textContent = destination;
@@ -268,10 +273,7 @@
                 manualContainer.classList.remove('hidden');
                 manualRedirectBtn.style.display = 'inline-block';
 
-                // Automatic redirect after a short delay (ensures message is seen)
-                setTimeout(() => {
-                    window.location.replace(destination);
-                }, 200);
+                
             }).catch((error) => {
                 console.error("Redirect error:", error);
                 messageDiv.innerHTML = `<div class="error">🔥 Failed to load link: ${error.message || 'Unknown error'}</div>`;
