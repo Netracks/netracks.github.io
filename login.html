@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | LinkTracker</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auth-container {
+            max-width: 450px;
+            margin: 2rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 28px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .auth-container h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #1e2b3c;
+        }
+        .auth-container input {
+            width: 100%;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            border: 1px solid #cbdbe0;
+            border-radius: 60px;
+            font-size: 0.95rem;
+        }
+        .auth-container button {
+            width: 100%;
+            background: #0f4c5f;
+            color: white;
+            border: none;
+            padding: 0.8rem;
+            border-radius: 60px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        .auth-container .provider-btn {
+            background: white;
+            border: 1px solid #cbdbe0;
+            color: #1e2b3c;
+            margin-top: 0.8rem;
+        }
+        .auth-container .provider-btn:hover {
+            background: #f4f9fe;
+        }
+        .auth-container .link {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        .error {
+            color: #b91c1c;
+            background: #ffe6e6;
+            padding: 0.6rem;
+            border-radius: 40px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .success {
+            color: #0f4c5f;
+            background: #e0f0f5;
+            padding: 0.6rem;
+            border-radius: 40px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        hr {
+            margin: 1rem 0;
+            border: none;
+            border-top: 1px solid #e2edf2;
+        }
+        .phone-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .phone-group input {
+            flex: 1;
+        }
+        .phone-group button {
+            width: auto;
+            padding: 0.8rem 1rem;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h2>🔗 Login to LinkTracker</h2>
+        <div id="messageDiv" class="error" style="display: none;"></div>
+
+        <!-- Email/Password login -->
+        <input type="email" id="email" placeholder="Email address" autocomplete="email">
+        <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+        <button id="loginBtn">Login with Email</button>
+        <div class="link">
+            <a href="#" id="forgotPasswordLink">Forgot password?</a>
+        </div>
+
+        <hr>
+
+        <!-- Phone login (OTP) -->
+        <div class="phone-group">
+            <input type="tel" id="phoneNumber" placeholder="Phone number (with country code, e.g., +1234567890)">
+            <button id="sendOtpBtn">Send OTP</button>
+        </div>
+        <div id="otpSection" style="display: none;">
+            <input type="text" id="otpCode" placeholder="Enter OTP">
+            <button id="verifyOtpBtn">Verify & Login</button>
+        </div>
+
+        <hr>
+
+        <!-- Social login -->
+        <button id="googleLoginBtn" class="provider-btn">🔐 Login with Google</button>
+        <button id="facebookLoginBtn" class="provider-btn">📘 Login with Facebook</button>
+
+        <div class="link">
+            Don't have an account? <a href="signup.html">Sign up</a>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { 
+            getAuth, 
+            signInWithEmailAndPassword, 
+            sendPasswordResetEmail,
+            GoogleAuthProvider, 
+            FacebookAuthProvider, 
+            signInWithPopup,
+            RecaptchaVerifier,
+            signInWithPhoneNumber
+        } from "firebase/auth";
+
+        // 🔁 Replace with your Firebase config// 🔁 YOUR FIREBASE CONFIGURATION
+const firebaseConfig = {
+  apiKey: "AIzaSyCx-yIgRBdqqaZm5mnCs6XicbJHqf442mQ",
+  authDomain: "netrackers.firebaseapp.com",
+  databaseURL: "https://netrackers-default-rtdb.firebaseio.com",
+  projectId: "netrackers",
+  storageBucket: "netrackers.firebasestorage.app",
+  messagingSenderId: "362299470159",
+  appId: "1:362299470159:web:dce2775a7c6fdd6970153a",
+  measurementId: "G-FHJSFVG3RE"
+};
+      
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        // DOM elements
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const loginBtn = document.getElementById('loginBtn');
+        const forgotLink = document.getElementById('forgotPasswordLink');
+        const messageDiv = document.getElementById('messageDiv');
+
+        const phoneInput = document.getElementById('phoneNumber');
+        const sendOtpBtn = document.getElementById('sendOtpBtn');
+        const otpSection = document.getElementById('otpSection');
+        const otpInput = document.getElementById('otpCode');
+        const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+
+        const googleBtn = document.getElementById('googleLoginBtn');
+        const facebookBtn = document.getElementById('facebookLoginBtn');
+
+        let confirmationResult = null;
+
+        // Helper: show message
+        function showMessage(msg, isError = true) {
+            messageDiv.textContent = msg;
+            messageDiv.className = isError ? 'error' : 'success';
+            messageDiv.style.display = 'block';
+            setTimeout(() => messageDiv.style.display = 'none', 4000);
+        }
+
+        // Email/Password login
+        loginBtn.addEventListener('click', async () => {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            if (!email || !password) {
+                showMessage('Please enter email and password');
+                return;
+            }
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                window.location.href = "trackindex.html";
+            } catch (error) {
+                showMessage(error.message);
+            }
+        });
+
+        // Forgot password
+        forgotLink.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = emailInput.value.trim();
+            if (!email) {
+                showMessage('Enter your email address first');
+                return;
+            }
+            try {
+                await sendPasswordResetEmail(auth, email);
+                showMessage('Password reset email sent!', false);
+            } catch (error) {
+                showMessage(error.message);
+            }
+        });
+
+        // Google Login
+        googleBtn.addEventListener('click', async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                const result = await signInWithPopup(auth, provider);
+                // Google user signed in
+                window.location.href = "index.html";
+            } catch (error) {
+                showMessage(error.message);
+            }
+        });
+
+        // Facebook Login
+        facebookBtn.addEventListener('click', async () => {
+            const provider = new FacebookAuthProvider();
+            try {
+                const result = await signInWithPopup(auth, provider);
+                window.location.href = "index.html";
+            } catch (error) {
+                showMessage(error.message);
+            }
+        });
+
+        // Phone login: send OTP
+        sendOtpBtn.addEventListener('click', async () => {
+            const phoneNumber = phoneInput.value.trim();
+            if (!phoneNumber) {
+                showMessage('Please enter phone number with country code');
+                return;
+            }
+
+            // Recaptcha verifier
+            window.recaptchaVerifier = new RecaptchaVerifier(auth, 'sendOtpBtn', {
+                'size': 'invisible',
+                'callback': (response) => {
+                    // reCAPTCHA solved, allow signInWithPhoneNumber.
+                }
+            });
+
+            try {
+                confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
+                otpSection.style.display = 'block';
+                showMessage('OTP sent!', false);
+            } catch (error) {
+                showMessage(error.message);
+                window.recaptchaVerifier.clear();
+            }
+        });
+
+        // Verify OTP
+        verifyOtpBtn.addEventListener('click', async () => {
+            const otp = otpInput.value.trim();
+            if (!otp || !confirmationResult) {
+                showMessage('Enter OTP code');
+                return;
+            }
+            try {
+                await confirmationResult.confirm(otp);
+                window.location.href = "index.html";
+            } catch (error) {
+                showMessage(error.message);
+            }
+        });
+    </script>
+</body>
+</html>

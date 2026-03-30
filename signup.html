@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up | LinkTracker</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .auth-container {
+            max-width: 450px;
+            margin: 2rem auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 28px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .auth-container h2 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            color: #1e2b3c;
+        }
+        .auth-container input {
+            width: 100%;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            border: 1px solid #cbdbe0;
+            border-radius: 60px;
+            font-size: 0.95rem;
+        }
+        .auth-container button {
+            width: 100%;
+            background: #0f4c5f;
+            color: white;
+            border: none;
+            padding: 0.8rem;
+            border-radius: 60px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 0.5rem;
+        }
+        .auth-container .link {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+        .error {
+            color: #b91c1c;
+            background: #ffe6e6;
+            padding: 0.6rem;
+            border-radius: 40px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .success {
+            color: #0f4c5f;
+            background: #e0f0f5;
+            padding: 0.6rem;
+            border-radius: 40px;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h2>📝 Create Account</h2>
+        <div id="messageDiv" class="error" style="display: none;"></div>
+        <input type="text" id="fullName" placeholder="Full Name" autocomplete="name">
+        <input type="email" id="email" placeholder="Email address" autocomplete="email">
+        <input type="password" id="password" placeholder="Password" autocomplete="new-password">
+        <input type="password" id="confirmPassword" placeholder="Confirm Password" autocomplete="off">
+        <button id="signupBtn">Sign Up with Email</button>
+        <div class="link">
+            Already have an account? <a href="login.html">Login</a>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+                "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+                "firebase/database": "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import { initializeApp } from "firebase/app";
+        import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+        import { getDatabase, ref, set } from "firebase/database";
+
+        // 🔁 Replace with your Firebase config
+  // 🔁 YOUR FIREBASE CONFIGURATION
+const firebaseConfig = {
+  apiKey: "AIzaSyCx-yIgRBdqqaZm5mnCs6XicbJHqf442mQ",
+  authDomain: "netrackers.firebaseapp.com",
+  databaseURL: "https://netrackers-default-rtdb.firebaseio.com",
+  projectId: "netrackers",
+  storageBucket: "netrackers.firebasestorage.app",
+  messagingSenderId: "362299470159",
+  appId: "1:362299470159:web:dce2775a7c6fdd6970153a",
+  measurementId: "G-FHJSFVG3RE"
+};
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        const signupBtn = document.getElementById('signupBtn');
+        const fullNameInput = document.getElementById('fullName');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const confirmInput = document.getElementById('confirmPassword');
+        const messageDiv = document.getElementById('messageDiv');
+
+        signupBtn.addEventListener('click', async () => {
+            const name = fullNameInput.value.trim();
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            const confirm = confirmInput.value;
+
+            messageDiv.style.display = 'none';
+
+            if (!name) {
+                showMessage('Please enter your full name.', true);
+                return;
+            }
+            if (!email) {
+                showMessage('Please enter your email.', true);
+                return;
+            }
+            if (password.length < 8) {
+                showMessage('Password must be at least 8 characters.', true);
+                return;
+            }
+            if (password !== confirm) {
+                showMessage('Passwords do not match.', true);
+                return;
+            }
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const user = userCredential.user;
+
+                // Store user profile in Realtime Database
+                await set(ref(db, `users/${user.uid}/profile`), {
+                    name: name,
+                    email: email,
+                    createdAt: Date.now()
+                });
+
+                showMessage('Account created! Redirecting...', false);
+                setTimeout(() => window.location.href = "trackindex.html", 1500);
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        });
+
+        function showMessage(msg, isError) {
+            messageDiv.textContent = msg;
+            messageDiv.className = isError ? 'error' : 'success';
+            messageDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
