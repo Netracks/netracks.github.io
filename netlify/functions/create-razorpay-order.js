@@ -1,42 +1,55 @@
 const Razorpay = require('razorpay');
 
 exports.handler = async (event) => {
-    if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, body: 'Method Not Allowed' };
-    }
-
     try {
-        console.log("ENV KEY:", process.env.RAZORPAY_KEY_ID);
+        if (event.httpMethod !== 'POST') {
+            return {
+                statusCode: 405,
+                body: JSON.stringify({ error: "Method Not Allowed" })
+            };
+        }
 
-        const { amount, currency, userId, plan } = JSON.parse(event.body);
+        // 🔥 Check ENV first
+        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+            return {
+                statusCode: 500,
+                body: JSON.stringify({
+                    error: "Missing Razorpay ENV variables"
+                })
+            };
+        }
 
-        // ✅ Initialize inside handler
+        const body = JSON.parse(event.body);
+
         const razorpay = new Razorpay({
             key_id: process.env.RAZORPAY_KEY_ID,
             key_secret: process.env.RAZORPAY_KEY_SECRET
         });
 
         const order = await razorpay.orders.create({
-            amount: amount,
-            currency: currency,
-            receipt: `receipt_${userId}_${Date.now()}`,
-            notes: { userId, plan }
+            amount: body.amount,
+            currency: body.currency || "INR",
+            receipt: `receipt_${Date.now()}`,
+            notes: {
+                userId: body.userId,
+                plan: body.plan
+            }
         });
-
-        console.log("ORDER CREATED:", order.id);
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ orderId: order.id })
+            body: JSON.stringify({
+                success: true,
+                orderId: order.id
+            })
         };
 
     } catch (error) {
-        console.error("ERROR:", error);
-
         return {
             statusCode: 500,
             body: JSON.stringify({
-                error: error.message
+                error: error.message,
+                stack: error.stack   // 🔥 THIS WILL SHOW REAL ERROR
             })
         };
     }
